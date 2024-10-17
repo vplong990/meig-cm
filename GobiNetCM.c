@@ -49,13 +49,14 @@ static int GobiNetGetClientID(const char *qcqmi, UCHAR QMIType) {
         dbg_time("failed to open %s, errno: %d (%s)", qcqmi, errno, strerror(errno));
         return -1;
     }
+    fcntl(cdc_wdm_fd, F_SETFD, FD_CLOEXEC) ;
+
     if (ioctl(ClientId, IOCTL_QMI_GET_SERVICE_FILE, QMIType) != 0) {
         dbg_time("failed to get ClientID for 0x%02x errno: %d (%s)", QMIType, errno, strerror(errno));
         close(ClientId);
         ClientId = 0;
     }
 
-    qmiclientId[QMIType] = ClientId;
     switch (QMIType) {
         case QMUX_TYPE_WDS: dbg_time("Get clientWDS = %d", ClientId); break;
         case QMUX_TYPE_DMS: dbg_time("Get clientDMS = %d", ClientId); break;
@@ -86,16 +87,20 @@ int GobiNetDeInit(void) {
     return 0;
 }
 
-
 void * GobiNetThread(void *pData) {
-    const char *qcqmi = (const char *)pData;
-    GobiNetGetClientID(qcqmi, QMUX_TYPE_WDS);
-    GobiNetGetClientID(qcqmi, QMUX_TYPE_DMS);
-    GobiNetGetClientID(qcqmi, QMUX_TYPE_NAS);
-    GobiNetGetClientID(qcqmi, QMUX_TYPE_UIM);
-    GobiNetGetClientID(qcqmi, QMUX_TYPE_WDS_ADMIN);
+    PROFILE_T *profile = (PROFILE_T *)pData;
+    const char *qcqmi = (const char *)profile->qmichannel;
+    
+    qmiclientId[QMUX_TYPE_WDS] = GobiNetGetClientID(qcqmi, QMUX_TYPE_WDS);
+    if (profile->IsDualIPSupported)
+        qmiclientId[QMUX_TYPE_WDS_IPV6] = GobiNetGetClientID(qcqmi, QMUX_TYPE_WDS);
+    qmiclientId[QMUX_TYPE_DMS] = GobiNetGetClientID(qcqmi, QMUX_TYPE_DMS);
+    qmiclientId[QMUX_TYPE_NAS] = GobiNetGetClientID(qcqmi, QMUX_TYPE_NAS);
+    qmiclientId[QMUX_TYPE_UIM] = GobiNetGetClientID(qcqmi, QMUX_TYPE_UIM);
+    qmiclientId[QMUX_TYPE_WDS_ADMIN] = GobiNetGetClientID(qcqmi, QMUX_TYPE_WDS_ADMIN);
 
-    if ((qmiclientId[QMUX_TYPE_WDS] == 0)  /*|| (clientWDA == -1)*/) {
+    //donot check clientWDA, there is only one client for WDA, if quectel-CM is killed by SIGKILL, i cannot get client ID for WDA again!
+    if (qmiclientId[QMUX_TYPE_WDS] == 0)  /*|| (clientWDA == -1)*/ {
         GobiNetDeInit();
         dbg_time("%s Failed to open %s, errno: %d (%s)", __func__, qcqmi, errno, strerror(errno));
         qmidevice_send_event_to_main(RIL_INDICATE_DEVICE_DISCONNECTED);
@@ -106,7 +111,7 @@ void * GobiNetThread(void *pData) {
     qmidevice_send_event_to_main(RIL_INDICATE_DEVICE_CONNECTED);
 
     while (1) {
-        struct pollfd pollfds[32] = {{qmidevice_control_fd[1], POLLIN, 0}};
+        struct pollfd pollfds[16] = {{qmidevice_control_fd[1], POLLIN, 0}};
         int ne, ret, nevents = 1;
         unsigned int i;
 

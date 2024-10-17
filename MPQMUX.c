@@ -97,6 +97,8 @@ qmi_name_item(QMIWDS_DUN_CALL_INFO_RESP), //             0x0038
 qmi_name_item(QMIWDS_DUN_CALL_INFO_IND), //              0x0038
 qmi_name_item(QMIWDS_SET_CLIENT_IP_FAMILY_PREF_REQ), //  0x004D  
 qmi_name_item(QMIWDS_SET_CLIENT_IP_FAMILY_PREF_RESP), // 0x004D  
+qmi_name_item(QMIWDS_SET_AUTO_CONNECT_REQ), //  0x0051  
+qmi_name_item(QMIWDS_SET_AUTO_CONNECT_RESP), // 0x0051
 qmi_name_item(QMIWDS_BIND_MUX_DATA_PORT_REQ), //         0x00A2  
 qmi_name_item(QMIWDS_BIND_MUX_DATA_PORT_RESP), //        0x00A2  
 };
@@ -188,8 +190,8 @@ qmi_name_item(QMINAS_GET_RF_BAND_INFO_REQ), //             0x0031
 qmi_name_item(QMINAS_GET_RF_BAND_INFO_RESP), //            0x0031
 qmi_name_item(QMINAS_GET_PLMN_NAME_REQ), //                0x0044
 qmi_name_item(QMINAS_GET_PLMN_NAME_RESP), //               0x0044
-qmi_name_item(MEIGE_PACKET_TRANSFER_START_IND), //                0X100
-qmi_name_item(MEIGE_PACKET_TRANSFER_END_IND), //               0X101
+qmi_name_item(QUECTEL_PACKET_TRANSFER_START_IND), //                0X100
+qmi_name_item(QUECTEL_PACKET_TRANSFER_END_IND), //               0X101
 qmi_name_item(QMINAS_GET_SYS_INFO_REQ), //                 0x004D
 qmi_name_item(QMINAS_GET_SYS_INFO_RESP), //                0x004D
 qmi_name_item(QMINAS_SYS_INFO_IND), //                     0x004D
@@ -316,6 +318,8 @@ void dump_tlv(PQCQMUX_MSG_HDR pQMUXMsgHdr) {
 void dump_ctl(PQCQMICTL_MSG_HDR CTLHdr) {
     const char *tag;
     
+    //dbg("QCQMICTL_MSG--------------------------------------------\n");
+    //dbg("CtlFlags:           %02x\t\t%s\n", CTLHdr->CtlFlags, QMI_NAME(qmi_ctl_CtlFlags, CTLHdr->CtlFlags));
    dbg("TransactionId:      %02x\n", CTLHdr->TransactionId);
         switch (CTLHdr->CtlFlags) {
             case QMICTL_FLAG_REQUEST: tag = "_REQ"; break;
@@ -403,7 +407,14 @@ void dump_qmi(void *dataBuffer, int dataLen)
     dbg_time("%s", line);
     line[0] = 0;
     
-    if ((QMIHdr->QMIType == QMUX_TYPE_CTL) ) {
+    //dbg("QCQMI_HDR-----------------------------------------");
+    //dbg("IFType:             %02x\t\t%s", QMIHdr->IFType, QMI_NAME(qmi_IFType, QMIHdr->IFType));
+    //dbg("Length:             %04x", le16_to_cpu(QMIHdr->Length));
+    //dbg("CtlFlags:           %02x\t\t%s", QMIHdr->CtlFlags, QMI_NAME(qmi_CtlFlags, QMIHdr->CtlFlags));
+    //dbg("QMIType:            %02x\t\t%s", QMIHdr->QMIType, QMI_NAME(qmi_QMIType, QMIHdr->QMIType));
+    //dbg("ClientId:           %02x", QMIHdr->ClientId);
+
+    if (QMIHdr->QMIType == QMUX_TYPE_CTL) {
         dump_ctl(CTLHdr);
     } else {
         dump_qmux(QMIHdr->QMIType, QMUXHdr);

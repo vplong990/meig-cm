@@ -7,6 +7,10 @@
 #define CONFIG_APN
 #define CONFIG_VERSION
 #define CONFIG_DEFAULT_PDP 1
+//#define CONFIG_IMSI_ICCID
+#ifndef ANDROID
+#define CONFIG_RESET_RADIO (45) //Reset Radiao(AT+CFUN=4,AT+CFUN=1) when cann not register network or setup data call in 45 seconds
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -72,12 +76,12 @@ typedef struct _QCQMIMSG {
 #pragma pack(pop)
 
 typedef struct __IPV4 {
-    ULONG Address;
-    ULONG Gateway;
-    ULONG SubnetMask;
-    ULONG DnsPrimary;
-    ULONG DnsSecondary;
-    ULONG Mtu;
+    uint32_t Address;
+    uint32_t Gateway;
+    uint32_t SubnetMask;
+    uint32_t DnsPrimary;
+    uint32_t DnsSecondary;
+    uint32_t Mtu;
 } IPV4_T;
 
 typedef struct __IPV6 {
@@ -91,6 +95,8 @@ typedef struct __IPV6 {
     ULONG Mtu;
 } IPV6_T;
 
+#define IpFamilyV4 (0x04)
+#define IpFamilyV6 (0x06)
 typedef struct __PROFILE {
     char * qmichannel;
     char * usbnet_adapter;
@@ -100,7 +106,8 @@ typedef struct __PROFILE {
     const char *pincode;
     int auth;
     int pdp;
-    int IPType;
+    int IsDualIPSupported;
+    int curIpFamily;
     int rawIP;
     IPV4_T ipv4;
     IPV6_T ipv6;
@@ -127,7 +134,7 @@ extern int pthread_cond_timeout_np(pthread_cond_t *cond, pthread_mutex_t * mutex
 extern int QmiThreadSendQMI(PQCQMIMSG pRequest, PQCQMIMSG *ppResponse);
 extern int QmiThreadSendQMITimeout(PQCQMIMSG pRequest, PQCQMIMSG *ppResponse, unsigned msecs);
 extern void QmiThreadRecvQMI(PQCQMIMSG pResponse);
-extern int QmiWwanInit(void);
+extern int QmiWwanInit(PROFILE_T *profile);
 extern int QmiWwanDeInit(void);
 extern int QmiWwanSendQMI(PQCQMIMSG pRequest);
 extern void * QmiWwanThread(void *pData);
@@ -140,14 +147,17 @@ extern void qmidevice_send_event_to_main(int triger_event);
 extern int requestSetEthMode(PROFILE_T *profile);
 extern int requestGetSIMStatus(SIM_Status *pSIMStatus);
 extern int requestEnterSimPin(const CHAR *pPinCode);
+extern int requestGetICCID(void);
+extern int requestGetIMSI(void);
 extern int requestRegistrationState(UCHAR *pPSAttachedState);
-extern int requestQueryDataCall(UCHAR  *pConnectionStatus);
-extern int requestSetupDataCall(PROFILE_T *profile);
-extern int requestDeactivateDefaultPDP(void);
+extern int requestQueryDataCall(UCHAR  *pConnectionStatus, int curIpFamily);
+extern int requestSetupDataCall(PROFILE_T *profile, int curIpFamily);
+extern int requestDeactivateDefaultPDP(PROFILE_T *profile, int curIpFamily);
 extern int requestSetProfile(PROFILE_T *profile);
 extern int requestGetProfile(PROFILE_T *profile);
 extern int requestBaseBandVersion(const char **pp_reversion);
-extern int requestGetIPAddress(PROFILE_T *profile);
+extern int requestGetIPAddress(PROFILE_T *profile, int curIpFamily);
+extern int requestSetOperatingMode(UCHAR OperatingMode);
 
 extern FILE *logfilefp;
 extern int debug_qmi;

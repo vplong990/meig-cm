@@ -18,8 +18,6 @@
 #include <syslog.h>
 #endif
 
-int debug = 0;
-
 #ifndef ANDROID //defined in atchannel.c
 static void setTimespecRelative(struct timespec *p_ts, long long msec)
 {
@@ -48,7 +46,7 @@ int pthread_cond_timeout_np(pthread_cond_t *cond,
 #endif
 
 static const char * get_time(void) {
-    static char time_buf[68] = {0};
+    static char time_buf[50];
     struct timeval  tv;
     time_t time;
     suseconds_t millitm;

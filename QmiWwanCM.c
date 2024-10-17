@@ -17,7 +17,7 @@ static UCHAR GetQCTLTransactionId(void) {
 typedef USHORT (*CUSTOMQCTL)(PQMICTL_MSG pCTLMsg, void *arg);
 
 static PQCQMIMSG ComposeQCTLMsg(USHORT QMICTLType, CUSTOMQCTL customQctlMsgFunction, void *arg) {
-    UCHAR QMIBuf[WDM_DEFAULT_BUFSIZE] = {0};
+    UCHAR QMIBuf[WDM_DEFAULT_BUFSIZE];
     PQCQMIMSG pRequest = (PQCQMIMSG)QMIBuf;
     int Length;
 
@@ -78,6 +78,9 @@ int QmiWwanSendQMI(PQCQMIMSG pRequest) {
         return -ENODEV;
     }
 
+    if (pRequest->QMIHdr.QMIType == QMUX_TYPE_WDS_IPV6)
+        pRequest->QMIHdr.QMIType = QMUX_TYPE_WDS;
+
     do {
         ret = poll(pollfds, sizeof(pollfds)/sizeof(pollfds[0]), 5000);
     } while ((ret < 0) && (errno == EINTR));
@@ -109,7 +112,6 @@ static int QmiWwanGetClientID(UCHAR QMIType) {
         UCHAR ClientId = pResponse->CTLMsg.GetClientIdRsp.ClientId;
 
         if (!QMUXResult && !QMUXError && (QMIType == pResponse->CTLMsg.GetClientIdRsp.QMIType)) {
-            qmiclientId[QMIType] = ClientId;
             switch (QMIType) {
                 case QMUX_TYPE_WDS: dbg_time("Get clientWDS = %d", ClientId); break;
                 case QMUX_TYPE_DMS: dbg_time("Get clientDMS = %d", ClientId); break;
@@ -122,6 +124,7 @@ static int QmiWwanGetClientID(UCHAR QMIType) {
                 break;
                 default: break;
             }
+            return ClientId;
         }
     }
     return 0;
@@ -133,7 +136,7 @@ static int QmiWwanReleaseClientID(QMI_SERVICE_TYPE QMIType, UCHAR ClientId) {
     return 0;
 }
 
-int QmiWwanInit(void) {
+int QmiWwanInit(PROFILE_T *profile) {
     unsigned i;
     int ret;
     PQCQMIMSG pResponse;
@@ -149,11 +152,13 @@ int QmiWwanInit(void) {
 
     QmiThreadSendQMI(ComposeQCTLMsg(QMICTL_GET_VERSION_REQ, CtlGetVersionReq, NULL), &pResponse);
     if (pResponse) free(pResponse);
-    QmiWwanGetClientID(QMUX_TYPE_WDS);
-    QmiWwanGetClientID(QMUX_TYPE_DMS);
-    QmiWwanGetClientID(QMUX_TYPE_NAS);
-    QmiWwanGetClientID(QMUX_TYPE_UIM);
-    QmiWwanGetClientID(QMUX_TYPE_WDS_ADMIN);
+    qmiclientId[QMUX_TYPE_WDS] = QmiWwanGetClientID(QMUX_TYPE_WDS);
+    if (profile->IsDualIPSupported)
+        qmiclientId[QMUX_TYPE_WDS_IPV6] = QmiWwanGetClientID(QMUX_TYPE_WDS);
+    qmiclientId[QMUX_TYPE_DMS] = QmiWwanGetClientID(QMUX_TYPE_DMS);
+    qmiclientId[QMUX_TYPE_NAS] = QmiWwanGetClientID(QMUX_TYPE_NAS);
+    qmiclientId[QMUX_TYPE_UIM] = QmiWwanGetClientID(QMUX_TYPE_UIM);
+    qmiclientId[QMUX_TYPE_WDS_ADMIN] = QmiWwanGetClientID(QMUX_TYPE_WDS_ADMIN);
     return 0;
 }
 
@@ -180,6 +185,8 @@ void * QmiWwanThread(void *pData) {
         pthread_exit(NULL);
         return NULL;
     }
+    fcntl(cdc_wdm_fd, F_SETFD, FD_CLOEXEC) ;
+
     dbg_time("cdc_wdm_fd = %d", cdc_wdm_fd);
 
     qmidevice_send_event_to_main(RIL_INDICATE_DEVICE_CONNECTED);
@@ -268,7 +275,7 @@ __QmiWwanThread_quit:
 
 #else
 int QmiWwanSendQMI(PQCQMIMSG pRequest) {return -1;}
-int QmiWwanInit(void) {return -1;}
+int QmiWwanInit(PROFILE_T *profile) {return -1;}
 int QmiWwanDeInit(void) {return -1;}
 void * QmiWwanThread(void *pData) {dbg_time("please set CONFIG_QMIWWAN"); return NULL;}
 #endif
